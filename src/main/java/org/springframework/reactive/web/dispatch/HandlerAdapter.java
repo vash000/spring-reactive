@@ -15,6 +15,8 @@
  */
 package org.springframework.reactive.web.dispatch;
 
+import org.reactivestreams.Publisher;
+
 import org.springframework.reactive.web.http.ServerHttpRequest;
 import org.springframework.reactive.web.http.ServerHttpResponse;
 
@@ -50,8 +52,8 @@ public interface HandlerAdapter {
 	 * to the {@code supports} method of this interface, which must have
 	 * returned {@code true}.
 	 * @throws Exception in case of errors
-	 * @return An {@link HandlerResult} instance
+	 * @return An {@link Publisher<HandlerResult>} instance
 	 */
-	HandlerResult handle(ServerHttpRequest request, ServerHttpResponse response, Object handler) throws Exception;
+	Publisher<HandlerResult> handle(ServerHttpRequest request, ServerHttpResponse response, Object handler) throws Exception;
 
 }

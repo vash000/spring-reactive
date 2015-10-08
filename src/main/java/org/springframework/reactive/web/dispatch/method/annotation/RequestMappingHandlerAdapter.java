@@ -13,11 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.springframework.reactive.web.dispatch.method.annotation;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import org.reactivestreams.Publisher;
+import reactor.Publishers;
+import reactor.core.error.ReactorFatalException;
 
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.reactive.codec.decoder.JacksonJsonDecoder;
@@ -31,27 +36,28 @@ import org.springframework.reactive.web.http.ServerHttpRequest;
 import org.springframework.reactive.web.http.ServerHttpResponse;
 import org.springframework.web.method.HandlerMethod;
 
-
 /**
  * @author Rossen Stoyanchev
+ * @author Stephane Maldini
  */
 public class RequestMappingHandlerAdapter implements HandlerAdapter, InitializingBean {
 
 	private List<HandlerMethodArgumentResolver> argumentResolvers;
 
-
-	public void setHandlerMethodArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+	public void setHandlerMethodArgumentResolvers(
+			List<HandlerMethodArgumentResolver> resolvers) {
 		this.argumentResolvers.clear();
 		this.argumentResolvers.addAll(resolvers);
 	}
-
 
 	@Override
 	public void afterPropertiesSet() throws Exception {
 		if (this.argumentResolvers == null) {
 			this.argumentResolvers = new ArrayList<>();
 			this.argumentResolvers.add(new RequestParamArgumentResolver());
-			this.argumentResolvers.add(new RequestBodyArgumentResolver(Arrays.asList(new StringDecoder(), new JacksonJsonDecoder()), Arrays.asList(new JsonObjectDecoder(true))));
+			this.argumentResolvers.add(new RequestBodyArgumentResolver(
+					Arrays.asList(new StringDecoder(), new JacksonJsonDecoder()),
+					Arrays.asList(new JsonObjectDecoder(true))));
 		}
 	}
 
@@ -61,15 +67,28 @@ public class RequestMappingHandlerAdapter implements HandlerAdapter, Initializin
 	}
 
 	@Override
-	public HandlerResult handle(ServerHttpRequest request, ServerHttpResponse response,
-			Object handler) throws Exception {
+	public Publisher<HandlerResult> handle(ServerHttpRequest request,
+			ServerHttpResponse response, Object handler) throws Exception {
 
-		final InvocableHandlerMethod invocable = new InvocableHandlerMethod((HandlerMethod) handler);
+		final InvocableHandlerMethod invocable =
+				new InvocableHandlerMethod((HandlerMethod) handler);
 		invocable.setHandlerMethodArgumentResolvers(this.argumentResolvers);
 
 		Object result = invocable.invokeForRequest(request, request, response);
 
-		return new HandlerResult(invocable, result);
+		if (result.getClass() == InvocableHandlerMethod.Deferred.class) {
+			return Publishers.map(((InvocableHandlerMethod.Deferred) result).result, input -> {
+				try {
+					return new HandlerResult(invocable,
+							invocable.invokeForRequest(request, input));
+				}
+				catch (Exception e) {
+					throw ReactorFatalException.create(e);
+				}
+			});
+		}
+
+		return Publishers.just(new HandlerResult(invocable, result));
 	}
 
 }

@@ -151,6 +151,17 @@ public class RequestMappingIntegrationTests extends AbstractHttpHandlerIntegrati
 	}
 
 	@Test
+	public void publisherOne() throws Exception {
+		RestTemplate restTemplate = new RestTemplate();
+
+		URI url = new URI("http://localhost:" + port + "/publisher-1-capitalize");
+		RequestEntity<Person> request = RequestEntity.post(url).body(new Person("Robert"));
+		ResponseEntity<Person> response = restTemplate.exchange(request, Person.class);
+
+		assertEquals("ROBERT", response.getBody().getName());
+	}
+
+	@Test
 	public void serializeAsPojo() throws Exception {
 		serializeAsPojo("http://localhost:" + port + "/person");
 	}
@@ -235,8 +246,8 @@ public class RequestMappingIntegrationTests extends AbstractHttpHandlerIntegrati
 		RestTemplate restTemplate = new RestTemplate();
 
 		URI url = new URI(requestUrl);
-		RequestEntity<Person> request = RequestEntity.post(url).accept(MediaType.APPLICATION_JSON).body(new Person
-		  ("Robert"));
+		RequestEntity<Person> request = RequestEntity.post(url).accept(MediaType.APPLICATION_JSON).body(
+				new Person("Robert"));
 		ResponseEntity<Person> response = restTemplate.exchange(request, Person.class);
 
 		assertEquals(new Person("Robert"), response.getBody());
@@ -247,7 +258,9 @@ public class RequestMappingIntegrationTests extends AbstractHttpHandlerIntegrati
 
 		URI url = new URI(requestUrl);
 		RequestEntity<Void> request = RequestEntity.get(url).accept(MediaType.APPLICATION_JSON).build();
-		List<Person> results = restTemplate.exchange(request, new ParameterizedTypeReference<List<Person>>(){}).getBody();
+		List<Person> results = restTemplate.exchange(request,
+				new ParameterizedTypeReference<List<Person>>() {
+				}).getBody();
 
 		assertEquals(2, results.size());
 		assertEquals(new Person("Robert"), results.get(0));
@@ -280,7 +293,9 @@ public class RequestMappingIntegrationTests extends AbstractHttpHandlerIntegrati
 				.contentType(MediaType.APPLICATION_JSON)
 				.accept(MediaType.APPLICATION_JSON)
 				.body(persons);
-		List<Person> results = restTemplate.exchange(request, new ParameterizedTypeReference<List<Person>>(){}).getBody();
+		List<Person> results = restTemplate.exchange(request,
+				new ParameterizedTypeReference<List<Person>>() {
+				}).getBody();
 
 		assertEquals(2, results.size());
 		assertEquals("ROBERT", results.get(0).getName());
@@ -314,7 +329,8 @@ public class RequestMappingIntegrationTests extends AbstractHttpHandlerIntegrati
 		@ResponseBody
 		public Publisher<ByteBuffer> rawResponseBody() {
 			JacksonJsonEncoder encoder = new JacksonJsonEncoder();
-			return encoder.encode(Streams.just(new Person("Robert")), ResolvableType.forClass(Person.class), MediaType.APPLICATION_JSON);
+			return encoder.encode(Streams.just(new Person("Robert")),
+					ResolvableType.forClass(Person.class), MediaType.APPLICATION_JSON);
 		}
 
 		@RequestMapping("/raw-observable")
@@ -366,6 +382,13 @@ public class RequestMappingIntegrationTests extends AbstractHttpHandlerIntegrati
 				person.setName(person.getName().toUpperCase());
 				return person;
 			});
+		}
+
+		@RequestMapping("/publisher-1-capitalize")
+		@ResponseBody
+		public Person publisherOneCapitalize(@RequestBody Person person) {
+			person.setName(person.getName().toUpperCase());
+			return person;
 		}
 
 		@RequestMapping("/observable-capitalize")

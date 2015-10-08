@@ -13,11 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.springframework.reactive.web.dispatch;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscriber;
+import reactor.Publishers;
+import reactor.Subscribers;
+import reactor.fn.Supplier;
+
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.context.ApplicationContext;
@@ -27,11 +37,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.reactive.web.http.HttpHandler;
 import org.springframework.reactive.web.http.ServerHttpRequest;
 import org.springframework.reactive.web.http.ServerHttpResponse;
-import reactor.Publishers;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Central dispatcher for HTTP request handlers/controllers. Dispatches to registered
@@ -89,9 +94,10 @@ public class DispatcherHandler implements HttpHandler, ApplicationContextAware {
 		AnnotationAwareOrderComparator.sort(this.resultHandlers);
 	}
 
-
 	@Override
-	public Publisher<Void> handle(ServerHttpRequest request, ServerHttpResponse response) {
+	@SuppressWarnings("unchecked")
+	public Publisher<Void> handle(ServerHttpRequest request,
+			ServerHttpResponse response) {
 
 		if (logger.isDebugEnabled()) {
 			logger.debug("Processing " + request.getMethod() + " request for [" + request.getURI() + "]");
@@ -106,20 +112,45 @@ public class DispatcherHandler implements HttpHandler, ApplicationContextAware {
 
 		HandlerAdapter handlerAdapter = getHandlerAdapter(handler);
 
-		try {
-			HandlerResult result = handlerAdapter.handle(request, response, handler);
-			for (HandlerResultHandler resultHandler : resultHandlers) {
-				if (resultHandler.supports(result)) {
-					return resultHandler.handleResult(request, response, result);
+		return s -> {
+			Publisher<HandlerResult> result;
+			try {
+				result = handlerAdapter.handle(request, response, handler);
+
+				if (Supplier.class.isAssignableFrom(result.getClass())) {
+					routeHandlerResult(((Supplier<HandlerResult>) result).get(), request,
+							response, s);
+				}
+				else {
+					result.subscribe(Subscribers.create(subscription -> {
+								subscription.request(1);
+								return s;
+							}, (_result, sub) -> {
+								sub.cancel();
+								routeHandlerResult(_result, request, response, s);
+							},
+							(error, sub) -> Publishers.<Void>error(error).subscribe(sub),
+							Subscriber::onComplete));
 				}
 			}
-			return Publishers.error(new IllegalStateException(
-			  "No HandlerResultHandler for " + result.getValue()));
-		}
-		catch(Exception ex) {
-			return Publishers.error(ex);
-		}
+			catch (Throwable ex) {
+				Publishers.<Void>error(ex).subscribe(s);
+			}
+		};
 
+
+	}
+
+	protected void routeHandlerResult(HandlerResult result, ServerHttpRequest request,
+			ServerHttpResponse response, Subscriber<? super Void> s) {
+		for (HandlerResultHandler resultHandler : resultHandlers) {
+			if (resultHandler.supports(result)) {
+				resultHandler.handleResult(request, response, result).subscribe(s);
+				return;
+			}
+		}
+		Publishers.<Void>error(new IllegalStateException(
+				"No HandlerResultHandler for " + result.getValue())).subscribe(s);
 	}
 
 	protected Object getHandler(ServerHttpRequest request) {

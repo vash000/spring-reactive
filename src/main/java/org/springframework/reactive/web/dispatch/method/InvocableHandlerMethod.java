@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.reactivestreams.Publisher;
+
 import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.GenericTypeResolver;
 import org.springframework.core.MethodParameter;
@@ -55,12 +57,22 @@ public class InvocableHandlerMethod extends HandlerMethod {
 	}
 
 
+	@SuppressWarnings("unchecked")
 	public Object invokeForRequest(ServerHttpRequest request, Object... providedArgs) throws Exception {
 		Object[] args = getMethodArgumentValues(request, providedArgs);
 		if (logger.isTraceEnabled()) {
 			logger.trace("Invoking [" + getBeanType().getSimpleName() + "." +
 					getMethod().getName() + "] method with arguments " + Arrays.asList(args));
 		}
+
+		//Blocking case
+		if(args != null && args.length == 1
+				&& Publisher.class.isAssignableFrom(args[0].getClass())
+				&& !Publisher.class.isAssignableFrom(getMethodParameters()[0].getParameterType())){
+
+			return new Deferred((Publisher<?>)args[0]);
+		}
+
 		Object returnValue = doInvoke(args);
 		if (logger.isTraceEnabled()) {
 			logger.trace("Method [" + getMethod().getName() + "] returned [" + returnValue + "]");
@@ -174,11 +186,20 @@ public class InvocableHandlerMethod extends HandlerMethod {
 				sb.append("[null] \n");
 			}
 			else {
-				sb.append("[type=").append(resolvedArgs[i].getClass().getName()).append("] ");
+				sb.append("[type=").append(resolvedArgs[i].getClass().getName()).append(
+						"] ");
 				sb.append("[value=").append(resolvedArgs[i]).append("]\n");
 			}
 		}
 		return sb.toString();
+	}
+
+	public final static class Deferred{
+		final public Publisher<?> result;
+
+		public Deferred(Publisher<?> result) {
+			this.result = result;
+		}
 	}
 
 }

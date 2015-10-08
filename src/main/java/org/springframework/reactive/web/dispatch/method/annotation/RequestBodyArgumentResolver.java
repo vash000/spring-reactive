@@ -91,6 +91,8 @@ public class RequestBodyArgumentResolver implements HandlerMethodArgumentResolve
 			return conversionService.convert(request.getBody(), type.getClass());
 		}
 
+		readType = readType == null ? type : readType;
+
 		Publisher<ByteBuffer> inputStream = request.getBody();
 		Publisher<?> elementStream = inputStream;
 
