@@ -23,7 +23,6 @@ import org.reactivestreams.Publisher;
  * Represent a server-side HTTP request.
  *
  * @author Rossen Stoyanchev
- * @author Stephane Maldini
  */
 public interface ServerHttpRequest extends HttpRequest {
 
