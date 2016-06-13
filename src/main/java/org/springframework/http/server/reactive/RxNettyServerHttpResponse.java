@@ -33,6 +33,7 @@ import org.springframework.core.io.buffer.NettyDataBufferFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.util.Assert;
+import rx.functions.Func1;
 
 /**
  * Adapt {@link ServerHttpResponse} to the RxNetty {@link HttpServerResponse}.
@@ -64,19 +65,18 @@ public class RxNettyServerHttpResponse extends AbstractServerHttpResponse {
 
 	@Override
 	protected Mono<Void> writeWithInternal(Publisher<DataBuffer> publisher) {
-		Observable<ByteBuf> content =
-				RxJava1ObservableConverter.from(publisher).map(this::toByteBuf);
-		Observable<Void> completion = this.response.write(content);
-		return RxJava1ObservableConverter.from(completion).then();
+		return RxJava1ObservableConverter
+				.from(response.write(toObservableByteBuf(publisher)))
+				.then();
 	}
 
-	private ByteBuf toByteBuf(DataBuffer buffer) {
-		if (buffer instanceof NettyDataBuffer) {
-			return ((NettyDataBuffer) buffer).getNativeBuffer();
-		}
-		else {
-			return Unpooled.wrappedBuffer(buffer.asByteBuffer());
-		}
+	private static Observable<ByteBuf> toObservableByteBuf(Publisher<DataBuffer> publisher) {
+		return RxJava1ObservableConverter
+				.from(publisher)
+				.map(buffer -> buffer instanceof NettyDataBuffer ?
+								((NettyDataBuffer) buffer).getNativeBuffer()
+								: Unpooled.wrappedBuffer(buffer.asByteBuffer())
+				);
 	}
 
 	@Override
