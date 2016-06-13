@@ -35,6 +35,9 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.util.Assert;
 import rx.functions.Func1;
 
+import java.util.List;
+import java.util.Map;
+
 /**
  * Adapt {@link ServerHttpResponse} to the RxNetty {@link HttpServerResponse}.
  *
@@ -81,9 +84,8 @@ public class RxNettyServerHttpResponse extends AbstractServerHttpResponse {
 
 	@Override
 	protected void writeHeaders() {
-		for (String name : getHeaders().keySet()) {
-			for (String value : getHeaders().get(name))
-				this.response.addHeader(name, value);
+		for (Map.Entry<String, List<String>> entry : getHeaders().entrySet()) {
+			this.response.addHeader(entry.getKey(),entry.getValue());
 		}
 	}
 
