@@ -35,6 +35,7 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.util.Assert;
 import rx.functions.Func1;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -84,26 +85,35 @@ public class RxNettyServerHttpResponse extends AbstractServerHttpResponse {
 
 	@Override
 	protected void writeHeaders() {
-		for (Map.Entry<String, List<String>> entry : getHeaders().entrySet()) {
-			this.response.addHeader(entry.getKey(),entry.getValue());
-		}
+		getHeaders()
+				.entrySet()
+				.stream()
+				.forEach(e -> response.addHeader(e.getKey(), e.getValue()));
 	}
 
 	@Override
 	protected void writeCookies() {
-		for (String name : getCookies().keySet()) {
-			for (ResponseCookie httpCookie : getCookies().get(name)) {
-				Cookie cookie = new DefaultCookie(name, httpCookie.getValue());
-				if (!httpCookie.getMaxAge().isNegative()) {
-					cookie.setMaxAge(httpCookie.getMaxAge().getSeconds());
-				}
-				httpCookie.getDomain().ifPresent(cookie::setDomain);
-				httpCookie.getPath().ifPresent(cookie::setPath);
-				cookie.setSecure(httpCookie.isSecure());
-				cookie.setHttpOnly(httpCookie.isHttpOnly());
-				this.response.addCookie(cookie);
-			}
+		getCookies()
+				.values()
+				.stream()
+				.flatMap(Collection::stream)
+				.map(RxNettyServerHttpResponse::copyCookie)
+				.forEach(response::addCookie);
+	}
+
+	private static Cookie copyCookie(ResponseCookie responseCookie) {
+
+		final Cookie cookie = new DefaultCookie(responseCookie.getName(), responseCookie.getValue());
+		if (!responseCookie.getMaxAge().isNegative()) {
+			cookie.setMaxAge(responseCookie.getMaxAge().getSeconds());
 		}
+		responseCookie.getDomain().ifPresent(cookie::setDomain);
+		responseCookie.getPath().ifPresent(cookie::setPath);
+		cookie.setSecure(responseCookie.isSecure());
+		cookie.setHttpOnly(responseCookie.isHttpOnly());
+		return cookie;
+
+
 	}
 
 /*
