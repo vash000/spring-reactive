@@ -151,25 +151,26 @@ public class UndertowHttpHandlerAdapter implements io.undertow.server.HttpHandle
 					return;
 				}
 				logger.trace("handleEvent");
-				ByteBuffer byteBuffer = pooledByteBuffer.getBuffer();
 				try {
+					final ByteBuffer byteBuffer = pooledByteBuffer.getBuffer();
 					while (checkSubscriptionForDemand()) {
-						int read = channel.read(byteBuffer);
+
+						final int read = channel.read(byteBuffer);
 						logger.trace("Input read:" + read);
 
-						if (read == -1) {
-							publishOnComplete();
-							close();
-							break;
-						}
-						else if (read == 0) {
-							// input not ready, wait until we are invoked again
-							break;
-						}
-						else {
+						if(read > 0) { //input ready to transmit
 							byteBuffer.flip();
 							DataBuffer dataBuffer = dataBufferFactory.wrap(byteBuffer);
 							publishOnNext(dataBuffer);
+						} else {
+							if(read == -1) {
+								publishOnComplete();
+								close();
+								return;
+							} else {
+								// input not ready, wait until we are invoked again
+								return;
+							}
 						}
 					}
 				}
