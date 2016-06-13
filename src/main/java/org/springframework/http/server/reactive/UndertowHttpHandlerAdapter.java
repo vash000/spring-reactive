@@ -133,12 +133,8 @@ public class UndertowHttpHandlerAdapter implements io.undertow.server.HttpHandle
 		}
 
 		private void close() {
-			if (this.pooledByteBuffer != null) {
-				IoUtils.safeClose(this.pooledByteBuffer);
-			}
-			if (this.requestChannel != null) {
-				IoUtils.safeClose(this.requestChannel);
-			}
+			IoUtils.safeClose(this.pooledByteBuffer);
+			IoUtils.safeClose(this.requestChannel);
 		}
 
 		@Override
