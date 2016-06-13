@@ -153,10 +153,7 @@ public class UndertowHttpHandlerAdapter implements io.undertow.server.HttpHandle
 				logger.trace("handleEvent");
 				ByteBuffer byteBuffer = pooledByteBuffer.getBuffer();
 				try {
-					while (true) {
-						if (!checkSubscriptionForDemand()) {
-							break;
-						}
+					while (checkSubscriptionForDemand()) {
 						int read = channel.read(byteBuffer);
 						logger.trace("Input read:" + read);
 
