@@ -25,6 +25,7 @@ import io.netty.handler.codec.http.cookie.DefaultCookie;
 import io.reactivex.netty.protocol.http.client.HttpClient;
 import io.reactivex.netty.protocol.http.client.HttpClientRequest;
 import org.reactivestreams.Publisher;
+import org.springframework.core.io.buffer.NettyDataBuffer;
 import reactor.core.converter.RxJava1ObservableConverter;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -79,7 +80,9 @@ public class RxNettyClientHttpRequest extends AbstractClientHttpRequest {
 	public Mono<Void> writeWith(Publisher<DataBuffer> body) {
 
 		this.body = RxJava1ObservableConverter.from(Flux.from(body)
-				.map(b -> dataBufferFactory.wrap(b.asByteBuffer()).getNativeBuffer()));
+				.map(DataBuffer::asByteBuffer)
+				.map(dataBufferFactory::wrap)
+				.map(NettyDataBuffer::getNativeBuffer));
 
 		return Mono.empty();
 	}
