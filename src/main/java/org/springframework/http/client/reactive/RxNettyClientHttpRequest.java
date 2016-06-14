@@ -17,8 +17,8 @@
 package org.springframework.http.client.reactive;
 
 import java.net.URI;
-import java.util.List;
-import java.util.Map;
+import java.util.Collection;
+import java.util.function.Function;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
@@ -33,7 +33,6 @@ import rx.Observable;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.core.io.buffer.NettyDataBufferFactory;
-import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 
@@ -98,40 +97,38 @@ public class RxNettyClientHttpRequest extends AbstractClientHttpRequest {
 	@Override
 	public Mono<ClientHttpResponse> execute() {
 		try {
-			HttpClientRequest<ByteBuf, ByteBuf> request = HttpClient
+			final HttpClientRequest<ByteBuf, ByteBuf> request = HttpClient
 					.newClient(this.uri.getHost(), this.uri.getPort())
 					.createRequest(io.netty.handler.codec.http.HttpMethod.valueOf(this.httpMethod.name()), uri.getRawPath());
 
 			return applyBeforeCommit()
 					.then(() -> Mono.just(request))
-					.map(req -> {
-						for (Map.Entry<String, List<String>> entry : getHeaders().entrySet()) {
-							for (String value : entry.getValue()) {
-								req = req.addHeader(entry.getKey(), value);
+						.map(req -> {
+							getHeaders().entrySet()
+									.stream()
+									.forEach(e -> req.addHeader(e.getKey(), e.getValue()));
+
+							getCookies().values()
+									.stream()
+									.flatMap(Collection::stream)
+									.map(c -> new DefaultCookie(c.getName(), c.getValue()))
+									.forEach(req::addCookie);
+
+							return req;
+						})
+						.map(req -> {
+							if (this.body != null) {
+								return RxJava1ObservableConverter.from(req.writeContent(this.body));
+							} else {
+								return RxJava1ObservableConverter.from(req);
 							}
-						}
-						for (Map.Entry<String, List<HttpCookie>> entry : getCookies().entrySet()) {
-							for (HttpCookie cookie : entry.getValue()) {
-								req.addCookie(new DefaultCookie(cookie.getName(), cookie.getValue()));
-							}
-						}
-						return req;
-					})
-					.map(req -> {
-						if (this.body != null) {
-							return RxJava1ObservableConverter.from(req.writeContent(this.body));
-						}
-						else {
-							return RxJava1ObservableConverter.from(req);
-						}
-					})
-					.flatMap(resp -> resp)
-					.next().map(response -> new RxNettyClientHttpResponse(response,
-							this.dataBufferFactory));
+						})
+						.flatMap(Function.identity())
+						.next()
+						.map(response -> new RxNettyClientHttpResponse(response, this.dataBufferFactory));
 		}
 		catch (IllegalArgumentException exc) {
 			return Mono.error(exc);
 		}
 	}
-
 }
